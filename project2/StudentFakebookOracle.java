@@ -125,7 +125,65 @@ public final class StudentFakebookOracle extends FakebookOracle {
                 info.setCommonNameCount(42);
                 return info;
             */
-            return new FirstNameInfo(); // placeholder for compilation
+            
+            FirstNameInfo info = new FirstNameInfo();
+
+            // Find all longest first names
+            ResultSet rst = stmt.executeQuery(
+                "SELECT DISTINCT First_Name " + 
+                "FROM " + UsersTable + " " + 
+                "WHERE First_Name IS NOT NULL " + 
+                "AND LENGTH(First_Name) = (" + 
+                    "SELECT MAX(LENGTH(First_Name)) " + 
+                    "FROM " + UsersTable + 
+                ") " + 
+                "ORDER BY First_Name ASC"
+            );
+            while (rst.next()) {
+                info.addLongName(rst.getString(1));
+            }
+            rst.close();
+
+            // Find all shortest first names
+            rst = stmt.executeQuery(
+                "SELECT DISTINCT First_Name " + 
+                "FROM " + UsersTable + " " + 
+                "WHERE First_Name IS NOT NULL " + 
+                "AND LENGTH(First_Name) = (" + 
+                    "SELECT MIN(LENGTH(First_Name)) " + 
+                    "FROM " + UsersTable + 
+                ") " + 
+                "ORDER BY First_Name ASC"
+            );
+            while (rst.next()) {
+                info.addShortName(rst.getString(1));
+            }
+            rst.close();
+
+            // Find all most common first names and the count of each of those names
+            rst = stmt.executeQuery(
+                "SELECT First_Name, COUNT(*) AS Name_Count " + 
+                "FROM " + UsersTable + " " + 
+                "WHERE First_Name IS NOT NULL " + 
+                "GROUP BY First_Name " + 
+                "HAVING COUNT(*) = (" + 
+                    "SELECT MAX(Name_Count) " + 
+                    "FROM (" + 
+                        "SELECT COUNT(*) AS Name_Count " + 
+                        "FROM " + UsersTable + " " + 
+                        "WHERE First_Name IS NOT NULL " + 
+                        "GROUP BY First_Name" + 
+                    ") name_counts" + 
+                ") " + 
+                "ORDER BY First_Name ASC"
+            );
+            while (rst.next()) {
+                info.addCommonName(rst.getString(1));
+                info.setCommonNameCount(rst.getLong(2));
+            }
+            rst.close();
+
+            return info; // placeholder for compilation
         } catch (SQLException e) {
             System.err.println(e.getMessage());
             return new FirstNameInfo();
@@ -152,6 +210,23 @@ public final class StudentFakebookOracle extends FakebookOracle {
                 results.add(u1);
                 results.add(u2);
             */
+            
+            // Find users without any friends
+            ResultSet rst = stmt.executeQuery(
+                "SELECT u.User_ID, u.First_Name, u.Last_Name " + 
+                "FROM " + UsersTable + " u " + 
+                "WHERE NOT EXISTS (" +
+                    "SELECT 1 " + 
+                    "FROM " + FriendsTable + " f " +
+                    "WHERE f.User1_ID = u.User_ID " + 
+                    "OR f.User2_ID = u.User_ID " + 
+                ") " + 
+                "ORDER BY u.User_ID ASC"
+            );
+            while(rst.next()) {
+                results.add(new UserInfo(rst.getLong(1), rst.getString(2), rst.getString(3)));
+            }
+            rst.close();
         } catch (SQLException e) {
             System.err.println(e.getMessage());
         }
@@ -177,6 +252,19 @@ public final class StudentFakebookOracle extends FakebookOracle {
                 results.add(u1);
                 results.add(u2);
             */
+            
+            // Find users who no longer live in their hometown
+            ResultSet rst = stmt.executeQuery(
+                "SELECT u.User_ID, u.First_Name, u.Last_Name " + 
+                "FROM " + UsersTable + " u " + 
+                "JOIN " + CurrentCitiesTable + " cc ON u.User_ID = cc.User_ID " + 
+                "JOIN " + HometownCitiesTable + " hc ON u.User_ID = hc.User_ID " + 
+                "WHERE cc.Current_City_ID <> hc.Hometown_City_ID " +
+                "ORDER BY u.User_ID ASC"
+            );
+            while(rst.next()) {
+                results.add(new UserInfo(rst.getLong(1), rst.getString(2), rst.getString(3)));
+            }
         } catch (SQLException e) {
             System.err.println(e.getMessage());
         }
@@ -209,6 +297,48 @@ public final class StudentFakebookOracle extends FakebookOracle {
                 tp.addTaggedUser(u3);
                 results.add(tp);
             */
+            
+            // Find the most highly-tagged photos
+            ArrayList<TaggedPhotoInfo> photoResults = new ArrayList<TaggedPhotoInfo>();
+            if (num > 0) {
+                ResultSet rst = stmt.executeQuery(
+                    "SELECT p.Photo_ID, p.Album_ID, p.Photo_Link, a.Album_Name, t.Tag_Subject_ID, u.First_Name, u.Last_Name, ranked.Tag_Count " + 
+                    "FROM (" + 
+                        "SELECT Tag_Photo_ID, Tag_Count " + 
+                        "FROM (" + 
+                            "SELECT Tag_Photo_ID, COUNT(*) AS Tag_Count " + 
+                            "FROM " + TagsTable + " " + 
+                            "GROUP BY Tag_Photo_ID " + 
+                            "ORDER BY COUNT(*) DESC, Tag_Photo_ID ASC" + 
+                        ") " + 
+                        "WHERE ROWNUM <= " + num + 
+                    ") ranked " + 
+                    "JOIN " + PhotosTable + " p ON p.Photo_ID = ranked.Tag_Photo_ID " + 
+                    "JOIN " + AlbumsTable + " a ON a.Album_ID = p.Album_ID " + 
+                    "JOIN " + TagsTable + " t ON t.Tag_Photo_ID = p.Photo_ID " + 
+                    "JOIN " + UsersTable + " u ON u.User_ID = t.Tag_Subject_ID " + 
+                    "ORDER BY ranked.Tag_Count DESC, p.Photo_ID ASC, u.User_ID ASC"
+                );
+                long currentPhotoID = -1;
+                TaggedPhotoInfo currentPhoto = null;
+                while(rst.next()) {
+                    long photoID = rst.getLong(1);
+                    if(photoID != currentPhotoID) {
+                        PhotoInfo photo = new PhotoInfo(photoID, rst.getLong(2), rst.getString(3), rst.getString(4));
+                        currentPhoto = new TaggedPhotoInfo(photo);
+                        photoResults.add(currentPhoto);
+                        currentPhotoID = photoID;
+                    }
+                    currentPhoto.addTaggedUser(new UserInfo(rst.getLong(5), rst.getString(6), rst.getString(7)));
+                }
+                rst.close();
+            } else {
+                return results;
+            }
+            
+            for(TaggedPhotoInfo photo : photoResults) {
+                results.add(photo);
+            }
         } catch (SQLException e) {
             System.err.println(e.getMessage());
         }
