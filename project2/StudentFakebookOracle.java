@@ -479,6 +479,26 @@ public final class StudentFakebookOracle extends FakebookOracle {
                 SiblingInfo si = new SiblingInfo(u1, u2);
                 results.add(si);
             */
+            ResultSet rst = stmt.executeQuery(
+                "SELECT u1.User_ID, u1.First_Name, u1.Last_Name, u2.User_ID, u2.First_Name, u2.Last_Name " + 
+                "FROM " + FriendsTable + " f " + 
+                "JOIN " + UsersTable + " u1 ON u1.User_ID = f.User1_ID " +
+                "JOIN " + UsersTable + " u2 ON u2.User_ID = f.User2_ID " +
+                "JOIN " + HometownCitiesTable + " h1 ON h1.User_ID = u1.User_ID " +
+                "JOIN " + HometownCitiesTable + " h2 ON h2.User_ID = u2.User_ID " +
+                "WHERE u1.Last_Name = u2.Last_Name " + 
+                "AND h1.Hometown_City_ID = h2.Hometown_City_ID " + 
+                "AND u1.Year_of_Birth IS NOT NULL " + 
+                "AND u2.Year_of_Birth IS NOT NULL " + 
+                "AND ABS(u1.Year_of_Birth - u2.Year_of_Birth) < 10 " +
+                "ORDER BY u1.User_ID ASC, u2.User_ID ASC"
+            );
+            while(rst.next()) {
+                UserInfo user1 = new UserInfo(rst.getLong(1), rst.getString(2), rst.getString(3));
+                UserInfo user2 = new UserInfo(rst.getLong(4), rst.getString(5), rst.getString(6));
+                results.add(new SiblingInfo(user1, user2));
+            }
+            rst.close();
         } catch (SQLException e) {
             System.err.println(e.getMessage());
         }
