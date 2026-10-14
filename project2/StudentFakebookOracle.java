@@ -178,6 +178,7 @@ public final class StudentFakebookOracle extends FakebookOracle {
                 info.setCommonNameCount(rst.getLong(2));
             }
             rst.close();
+            stmt.close();
 
             return info;
         } catch (SQLException e) {
@@ -221,6 +222,7 @@ public final class StudentFakebookOracle extends FakebookOracle {
                 results.add(new UserInfo(rst.getLong(1), rst.getString(2), rst.getString(3)));
             }
             rst.close();
+            stmt.close();
         } catch (SQLException e) {
             System.err.println(e.getMessage());
         }
@@ -257,6 +259,8 @@ public final class StudentFakebookOracle extends FakebookOracle {
             while(rst.next()) {
                 results.add(new UserInfo(rst.getLong(1), rst.getString(2), rst.getString(3)));
             }
+            rst.close();
+            stmt.close();
         } catch (SQLException e) {
             System.err.println(e.getMessage());
         }
@@ -325,10 +329,11 @@ public final class StudentFakebookOracle extends FakebookOracle {
             } else {
                 return results;
             }
-            
             for(TaggedPhotoInfo photo : photoResults) {
                 results.add(photo);
             }
+            rst.close();
+            stmt.close();
         } catch (SQLException e) {
             System.err.println(e.getMessage());
         }
@@ -363,7 +368,7 @@ public final class StudentFakebookOracle extends FakebookOracle {
                 mp.addSharedPhoto(p);
                 results.add(mp);
             */
-           if(num > 0) {
+            if(num > 0) {
                 ResultSet rst = stmt.executeQuery(
                     "SELECT ranked.User1_ID, ranked.User2_ID, u1.First_Name, u1.Last_Name, u1.Year_Of_Birth, u2.First_Name, u2.Last_Name, u2.Year_Of_Birth, p.Photo_ID, p.Album_ID, p.Photo_Link, a.Album_Name " +
                     "FROM (" + 
@@ -414,6 +419,7 @@ public final class StudentFakebookOracle extends FakebookOracle {
                     currentPair.addSharedPhoto(photo);
                 }
                 rst.close();
+                stmt.close();
             }
         } catch (SQLException e) {
             System.err.println(e.getMessage());
@@ -445,7 +451,7 @@ public final class StudentFakebookOracle extends FakebookOracle {
                 up.addSharedFriend(u3);
                 results.add(up);
             */
-           if(num > 0) {
+            if(num > 0) {
                 ResultSet rst = stmt.executeQuery(
                     "WITH Directed AS (" +
                         "SELECT User1_ID AS User_ID, User2_ID AS Friend_ID " + 
@@ -499,6 +505,7 @@ public final class StudentFakebookOracle extends FakebookOracle {
                     currentPair.addSharedFriend(friend);
                 }
                 rst.close();
+                stmt.close();
             }
         } catch (SQLException e) {
             System.err.println(e.getMessage());
@@ -534,18 +541,19 @@ public final class StudentFakebookOracle extends FakebookOracle {
             EventStateInfo info = null;
             long maxCount = -1;
             while(rst.next()) {
-                    long count = rst.getLong(2);
-                    if(info == null) {
-                        maxCount = count;
-                        info = new EventStateInfo(maxCount);
-                    }
-                    if(count != maxCount) {
-                        break;
-                    }
-                    info.addState(rst.getString(1));
+                long count = rst.getLong(2);
+                if(info == null) {
+                    maxCount = count;
+                    info = new EventStateInfo(maxCount);
                 }
-                rst.close();
-                return info;
+                if(count != maxCount) {
+                    break;
+                }
+                info.addState(rst.getString(1));
+            }
+            rst.close();
+            stmt.close();
+            return info;
         } catch (SQLException e) {
             System.err.println(e.getMessage());
             return new EventStateInfo(-1);
@@ -600,6 +608,7 @@ public final class StudentFakebookOracle extends FakebookOracle {
                 }
             }
             rst.close();
+            stmt.close();
             return new AgeInfo(oldest, youngest);
         } catch (SQLException e) {
             System.err.println(e.getMessage());
@@ -648,6 +657,7 @@ public final class StudentFakebookOracle extends FakebookOracle {
                 results.add(new SiblingInfo(user1, user2));
             }
             rst.close();
+            stmt.close();
         } catch (SQLException e) {
             System.err.println(e.getMessage());
         }
