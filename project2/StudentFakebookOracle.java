@@ -326,14 +326,13 @@ public final class StudentFakebookOracle extends FakebookOracle {
                     currentPhoto.addTaggedUser(new UserInfo(rst.getLong(5), rst.getString(6), rst.getString(7)));
                 }
                 rst.close();
+                stmt.close();
             } else {
                 return results;
             }
             for(TaggedPhotoInfo photo : photoResults) {
                 results.add(photo);
             }
-            rst.close();
-            stmt.close();
         } catch (SQLException e) {
             System.err.println(e.getMessage());
         }
