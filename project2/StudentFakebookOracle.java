@@ -373,18 +373,18 @@ public final class StudentFakebookOracle extends FakebookOracle {
                 mp.addSharedPhoto(p);
                 results.add(mp);
             */
-           if (num > 0) {
+           if(num > 0){
                 ResultSet rst = stmt.executeQuery(
                     "SELECT ranked.User1_ID, ranked.User2_ID, " + "u1.First_Name, u1.Last_Name, u1.Year_Of_Birth, " + "u2.First_Name, u2.Last_Name, u2.Year_Of_Birth, " + "p.Photo_ID, p.Album_ID, p.Photo_Link, a.Album_Name " +
                     "FROM (" + "SELECT User1_ID, User2_ID, Shared_Count " +
                     "FROM (" + "SELECT t1.Tag_Subject_ID AS User1_ID, " + "t2.Tag_Subject_ID AS User2_ID, " +
-                    "COUNT(DISTINCT t1.Tag_Photo_ID) AS Shared_Count " +
+                    "COUNT(t1.Tag_Photo_ID) AS Shared_Count " +
                     "FROM " + TagsTable + " t1 " +
                     "JOIN " + TagsTable + " t2 " + "ON t1.Tag_Photo_ID = t2.Tag_Photo_ID " + "AND t1.Tag_Subject_ID < t2.Tag_Subject_ID " +
                     "JOIN " + UsersTable + " u1 " + "ON u1.User_ID = t1.Tag_Subject_ID " +
                     "JOIN " + UsersTable + " u2 " + "ON u2.User_ID = t2.Tag_Subject_ID " +
-                    "WHERE u1.Gender = u2.Gender " + "AND u1.Year_Of_Birth IS NOT NULL " + "AND u2.Year_Of_Birth IS NOT NULL " + "AND ABS(u1.Year_Of_Birth - u2.Year_Of_Birth) <= " + yearDiff + " " + "AND NOT EXISTS (" + "SELECT 1 FROM " + FriendsTable + " f " +
-                    "WHERE f.User1_ID = t1.Tag_Subject_ID " + "AND f.User2_ID = t2.Tag_Subject_ID " + ") " +
+                    "WHERE u1.Gender = u2.Gender " + "AND ABS(u1.Year_Of_Birth - u2.Year_Of_Birth) <= " + yearDiff + " " + "AND NOT EXISTS (" +
+                    "SELECT 1 FROM " + FriendsTable + " f " + "WHERE f.User1_ID = t1.Tag_Subject_ID " + "AND f.User2_ID = t2.Tag_Subject_ID " + ") " +
                     "GROUP BY t1.Tag_Subject_ID, t2.Tag_Subject_ID " +
                     "ORDER BY Shared_Count DESC, " + "t1.Tag_Subject_ID ASC, t2.Tag_Subject_ID ASC" + ") " +
                     "WHERE ROWNUM <= " + num + " " + ") ranked " +
@@ -399,10 +399,10 @@ public final class StudentFakebookOracle extends FakebookOracle {
                 long currentUser = -1;
                 long currentUser2 = -1;
                 MatchPair currentPair = null;
-                while(rst.next()) {
+                while(rst.next()){
                     long userID = rst.getLong(1);
                     long user2ID = rst.getLong(2);
-                    if(userID != currentUser || user2ID != currentUser2) {
+                    if(userID != currentUser || user2ID != currentUser2){
                         UserInfo user = new UserInfo(userID, rst.getString(3), rst.getString(4));
                         UserInfo user2 = new UserInfo(user2ID, rst.getString(6), rst.getString(7));
                         currentPair = new MatchPair(user, rst.getInt(5), user2, rst.getInt(8));
@@ -445,6 +445,43 @@ public final class StudentFakebookOracle extends FakebookOracle {
                 up.addSharedFriend(u3);
                 results.add(up);
             */
+           if(num > 0){
+                ResultSet rst = stmt.executeQuery(
+                    "WITH Directed AS (" +
+                    "SELECT User1_ID AS User_ID, User2_ID AS Friend_ID " + "FROM " + FriendsTable + " " + "UNION ALL " +
+                    "SELECT User2_ID AS User_ID, User1_ID AS Friend_ID " + "FROM " + FriendsTable + ") " +
+                    "SELECT ranked.User1_ID, ranked.User2_ID, " + "u1.First_Name, u1.Last_Name, " + "u2.First_Name, u2.Last_Name, " + "f.User_ID, f.First_Name, f.Last_Name " +
+                    "FROM (" + "SELECT User1_ID, User2_ID, Mutual_Count " +
+                    "FROM (" + "SELECT d1.User_ID AS User1_ID, " + "d2.User_ID AS User2_ID, " + "COUNT(d1.Friend_ID) AS Mutual_Count " +
+                    "FROM Directed d1 " + "JOIN Directed d2 " + "ON d1.Friend_ID = d2.Friend_ID " + "AND d1.User_ID < d2.User_ID " +
+                    "WHERE NOT EXISTS (" + "SELECT 1 FROM " + FriendsTable + " fr " + "WHERE fr.User1_ID = d1.User_ID " + "AND fr.User2_ID = d2.User_ID" + ") " +
+                    "GROUP BY d1.User_ID, d2.User_ID " + "ORDER BY Mutual_Count DESC, " + "d1.User_ID ASC, d2.User_ID ASC" + ") " + "WHERE ROWNUM <= " + num + " " + ") ranked " +
+                    "JOIN " + UsersTable + " u1 ON u1.User_ID = ranked.User1_ID " +
+                    "JOIN " + UsersTable + " u2 ON u2.User_ID = ranked.User2_ID " +
+                    "JOIN Directed d1 ON d1.User_ID = ranked.User1_ID " +
+                    "JOIN Directed d2 " + "ON d2.User_ID = ranked.User2_ID " + "AND d1.Friend_ID = d2.Friend_ID " +
+                    "JOIN " + UsersTable + " f ON f.User_ID = d1.Friend_ID " +
+                    "ORDER BY ranked.Mutual_Count DESC, " + "ranked.User1_ID ASC, ranked.User2_ID ASC, f.User_ID ASC"
+                );
+                long currentUser = -1;
+                long currentUser2 = -1;
+                UsersPair currentPair = null;
+                while(rst.next()){
+                    long userID = rst.getLong(1);
+                    long user2ID = rst.getLong(2);
+                    if(userID != currentUser || user2ID != currentUser2){
+                        UserInfo user =  new UserInfo(userID, rst.getString(3), rst.getString(4));
+                        UserInfo user2 = new UserInfo(user2ID, rst.getString(5), rst.getString(6));
+                        currentPair = new UsersPair(user, user2);
+                        results.add(currentPair);
+                        currentUser = userID;
+                        currentUser2 = user2ID;
+                    }
+                    UserInfo friend = new UserInfo(rst.getLong(7), rst.getString(8), rst.getString(9));
+                    currentPair.addSharedFriend(friend);
+                }
+                rst.close();
+            }
         } catch (SQLException e) {
             System.err.println(e.getMessage());
         }
@@ -469,7 +506,27 @@ public final class StudentFakebookOracle extends FakebookOracle {
                 info.addState("New Hampshire");
                 return info;
             */
-            return new EventStateInfo(-1); // placeholder for compilation
+            ResultSet rst = stmt.executeQuery(
+                "SELECT c.State_Name, COUNT(*) AS Event_Count " + "FROM " + EventsTable + " e " +
+                "JOIN " + CitiesTable + " c ON e.Event_City_ID = c.City_ID " +
+                "GROUP BY c.State_Name " +
+                "ORDER BY Event_Count DESC, c.State_Name ASC"
+            );
+            EventStateInfo info = null;
+            long maxCount = -1;
+            while(rst.next()){
+                    long count = rst.getLong(2);
+                    if(info == null){
+                        maxCount = count;
+                        info = new EventStateInfo(maxCount);
+                    }
+                    if(count != maxCount){
+                        break;
+                    }
+                    info.addState(rst.getString(1));
+                }
+                rst.close();
+                return info;
         } catch (SQLException e) {
             System.err.println(e.getMessage());
             return new EventStateInfo(-1);
@@ -493,7 +550,26 @@ public final class StudentFakebookOracle extends FakebookOracle {
                 UserInfo young = new UserInfo(80000000, "Neil", "deGrasse Tyson");
                 return new AgeInfo(old, young);
             */
-            return new AgeInfo(new UserInfo(-1, "UNWRITTEN", "UNWRITTEN"), new UserInfo(-1, "UNWRITTEN", "UNWRITTEN")); // placeholder for compilation
+            ResultSet rst = stmt.executeQuery(
+                "SELECT User_ID, First_Name, Last_Name, Old_Rank, Young_Rank " +
+                "FROM (" + "SELECT u.User_ID, u.First_Name, u.Last_Name, " +
+                "ROW_NUMBER() OVER (" + "ORDER BY u.Year_Of_Birth ASC, " + "u.Month_Of_Birth ASC, " + "u.Day_Of_Birth ASC, " + "u.User_ID DESC" + ") AS Old_Rank, " +
+                "ROW_NUMBER() OVER (" + "ORDER BY u.Year_Of_Birth DESC, " + "u.Month_Of_Birth DESC, " + "u.Day_Of_Birth DESC, " + "u.User_ID DESC" + ") AS Young_Rank " +
+                "FROM " + UsersTable + " u " + "JOIN " + FriendsTable + " f " + "ON (f.User1_ID = " + userID + " AND f.User2_ID = u.User_ID) " + "OR (f.User2_ID = " + userID + " AND f.User1_ID = u.User_ID)" + ") " + "WHERE Old_Rank = 1 OR Young_Rank = 1"
+            );
+            UserInfo oldest = null;
+            UserInfo youngest = null;
+            while(rst.next()){
+                UserInfo user = new UserInfo(rst.getLong(1), rst.getString(2), rst.getString(3));
+                if(rst.getInt(4) == 1){
+                    oldest = user;
+                }
+                if(rst.getInt(5) == 1){
+                    youngest = user;
+                }
+            }
+            rst.close();
+            return new AgeInfo(oldest, youngest);
         } catch (SQLException e) {
             System.err.println(e.getMessage());
             return new AgeInfo(new UserInfo(-1, "ERROR", "ERROR"), new UserInfo(-1, "ERROR", "ERROR"));
