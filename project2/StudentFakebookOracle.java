@@ -362,7 +362,7 @@ public final class StudentFakebookOracle extends FakebookOracle {
         FakebookArrayList<MatchPair> results = new FakebookArrayList<MatchPair>("\n");
 
         try (Statement stmt = oracle.createStatement(FakebookOracleConstants.AllScroll,
-                FakebookOracleConstants.ReadOnly)) {
+                FakebookOracleConstants.ReadOnly)){
             /*
                 EXAMPLE DATA STRUCTURE USAGE
                 ============================================
@@ -373,6 +373,48 @@ public final class StudentFakebookOracle extends FakebookOracle {
                 mp.addSharedPhoto(p);
                 results.add(mp);
             */
+           if (num > 0) {
+                ResultSet rst = stmt.executeQuery(
+                    "SELECT ranked.User1_ID, ranked.User2_ID, " + "u1.First_Name, u1.Last_Name, u1.Year_Of_Birth, " + "u2.First_Name, u2.Last_Name, u2.Year_Of_Birth, " + "p.Photo_ID, p.Album_ID, p.Photo_Link, a.Album_Name " +
+                    "FROM (" + "SELECT User1_ID, User2_ID, Shared_Count " +
+                    "FROM (" + "SELECT t1.Tag_Subject_ID AS User1_ID, " + "t2.Tag_Subject_ID AS User2_ID, " +
+                    "COUNT(DISTINCT t1.Tag_Photo_ID) AS Shared_Count " +
+                    "FROM " + TagsTable + " t1 " +
+                    "JOIN " + TagsTable + " t2 " + "ON t1.Tag_Photo_ID = t2.Tag_Photo_ID " + "AND t1.Tag_Subject_ID < t2.Tag_Subject_ID " +
+                    "JOIN " + UsersTable + " u1 " + "ON u1.User_ID = t1.Tag_Subject_ID " +
+                    "JOIN " + UsersTable + " u2 " + "ON u2.User_ID = t2.Tag_Subject_ID " +
+                    "WHERE u1.Gender = u2.Gender " + "AND u1.Year_Of_Birth IS NOT NULL " + "AND u2.Year_Of_Birth IS NOT NULL " + "AND ABS(u1.Year_Of_Birth - u2.Year_Of_Birth) <= " + yearDiff + " " + "AND NOT EXISTS (" + "SELECT 1 FROM " + FriendsTable + " f " +
+                    "WHERE f.User1_ID = t1.Tag_Subject_ID " + "AND f.User2_ID = t2.Tag_Subject_ID " + ") " +
+                    "GROUP BY t1.Tag_Subject_ID, t2.Tag_Subject_ID " +
+                    "ORDER BY Shared_Count DESC, " + "t1.Tag_Subject_ID ASC, t2.Tag_Subject_ID ASC" + ") " +
+                    "WHERE ROWNUM <= " + num + " " + ") ranked " +
+                    "JOIN " + UsersTable + " u1 ON u1.User_ID = ranked.User1_ID " +
+                    "JOIN " + UsersTable + " u2 ON u2.User_ID = ranked.User2_ID " +
+                    "JOIN " + TagsTable + " t1 ON t1.Tag_Subject_ID = ranked.User1_ID " +
+                    "JOIN " + TagsTable + " t2 " + "ON t2.Tag_Subject_ID = ranked.User2_ID " + "AND t1.Tag_Photo_ID = t2.Tag_Photo_ID " +
+                    "JOIN " + PhotosTable + " p ON p.Photo_ID = t1.Tag_Photo_ID " +
+                    "JOIN " + AlbumsTable + " a ON a.Album_ID = p.Album_ID " +
+                    "ORDER BY ranked.Shared_Count DESC, " + "ranked.User1_ID ASC, ranked.User2_ID ASC, p.Photo_ID ASC"
+                );
+                long currentUser = -1;
+                long currentUser2 = -1;
+                MatchPair currentPair = null;
+                while(rst.next()) {
+                    long userID = rst.getLong(1);
+                    long user2ID = rst.getLong(2);
+                    if(userID != currentUser || user2ID != currentUser2) {
+                        UserInfo user = new UserInfo(userID, rst.getString(3), rst.getString(4));
+                        UserInfo user2 = new UserInfo(user2ID, rst.getString(6), rst.getString(7));
+                        currentPair = new MatchPair(user, rst.getInt(5), user2, rst.getInt(8));
+                        results.add(currentPair);
+                        currentUser = userID;
+                        currentUser2 = user2ID;
+                    }
+                    PhotoInfo photo = new PhotoInfo(rst.getLong(9), rst.getLong(10), rst.getString(11), rst.getString(12));
+                    currentPair.addSharedPhoto(photo);
+                }
+                rst.close();
+            }
         } catch (SQLException e) {
             System.err.println(e.getMessage());
         }
